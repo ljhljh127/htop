@@ -1648,11 +1648,10 @@ static bool LinuxProcessList_recurseProcTree(LinuxProcessList* this, openat_arg_
          free(proc->tty_name);
          proc->tty_name = LinuxProcessList_updateTtyDevice(this->ttyDrivers, proc->tty_nr);
       }
-
       if (ss->flags & PROCESS_FLAG_LINUX_IOPRIO) {
          LinuxProcess_updateIOPriority(lp);
       }
-
+      /*개별적 프로세스와 cpu의 퍼센트에 관련된 부분*/
       /* period might be 0 after system sleep */
       float percent_cpu = (period < 1E-6) ? 0.0F : ((lp->utime + lp->stime - lasttimes) / period * 100.0);
       proc->percent_cpu = CLAMP(percent_cpu, 0.0F, activeCPUs * 100.0F);
