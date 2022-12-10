@@ -7,9 +7,8 @@ in the source distribution for its full text.
 */
 
 #include "config.h" // IWYU pragma: keep
-
 #include "Process.h"
-
+#include <stdlib.h>
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -34,22 +33,34 @@ in the source distribution for its full text.
 #if defined(MAJOR_IN_MKDEV)
 #include <sys/mkdev.h>
 #endif
-
+extern int meml; // memlimit 전역변수
+extern int cpul; // cpulimit 전역변수
 
 /* Used to identify kernel threads in Comm and Exe columns */
-static const char* const kthreadID = "KTHREAD";
+static const char *const kthreadID = "KTHREAD";
 
 static uid_t Process_getuid = (uid_t)-1;
 
 int Process_pidDigits = PROCESS_MIN_PID_DIGITS;
 int Process_uidDigits = PROCESS_MIN_UID_DIGITS;
+static int nowTime(int i)
+{
+   time_t ct;
+   struct tm tm;
+   ct = time(NULL);
+   tm = *localtime(&ct);
+   int Timearray[6] = {tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec};
+   return Timearray[i];
+}
 
-void Process_setupColumnWidths(void) {
+void Process_setupColumnWidths(void)
+{
    int maxPid = Platform_getMaxPid();
    if (maxPid == -1)
       return;
 
-   if (maxPid < (int)pow(10, PROCESS_MIN_PID_DIGITS)) {
+   if (maxPid < (int)pow(10, PROCESS_MIN_PID_DIGITS))
+   {
       Process_pidDigits = PROCESS_MIN_PID_DIGITS;
       return;
    }
@@ -58,8 +69,10 @@ void Process_setupColumnWidths(void) {
    assert(Process_pidDigits <= PROCESS_MAX_PID_DIGITS);
 }
 
-void Process_setUidColumnWidth(uid_t maxUid) {
-   if (maxUid < (uid_t)pow(10, PROCESS_MIN_UID_DIGITS)) {
+void Process_setUidColumnWidth(uid_t maxUid)
+{
+   if (maxUid < (uid_t)pow(10, PROCESS_MIN_UID_DIGITS))
+   {
       Process_uidDigits = PROCESS_MIN_UID_DIGITS;
       return;
    }
@@ -68,7 +81,8 @@ void Process_setUidColumnWidth(uid_t maxUid) {
    assert(Process_uidDigits <= PROCESS_MAX_UID_DIGITS);
 }
 
-void Process_printBytes(RichString* str, unsigned long long number, bool coloring) {
+void Process_printBytes(RichString *str, unsigned long long number, bool coloring)
+{
    char buffer[16];
    int len;
 
@@ -78,40 +92,50 @@ void Process_printBytes(RichString* str, unsigned long long number, bool colorin
    int shadowColor = coloring ? CRT_colors[PROCESS_SHADOW] : CRT_colors[PROCESS];
    int processColor = CRT_colors[PROCESS];
 
-   if (number == ULLONG_MAX) {
-      //Invalid number
+   if (number == ULLONG_MAX)
+   {
+      // Invalid number
       RichString_appendAscii(str, shadowColor, "  N/A ");
       return;
    }
 
    number /= ONE_K;
 
-   if (number < 1000) {
-      //Plain number, no markings
+   if (number < 1000)
+   {
+      // Plain number, no markings
       len = xSnprintf(buffer, sizeof(buffer), "%5llu ", number);
       RichString_appendnAscii(str, processColor, buffer, len);
-   } else if (number < 100000) {
-      //2 digit MB, 3 digit KB
+   }
+   else if (number < 100000)
+   {
+      // 2 digit MB, 3 digit KB
       len = xSnprintf(buffer, sizeof(buffer), "%2llu", number / 1000);
       RichString_appendnAscii(str, processMegabytesColor, buffer, len);
       number %= 1000;
       len = xSnprintf(buffer, sizeof(buffer), "%03llu ", number);
       RichString_appendnAscii(str, processColor, buffer, len);
-   } else if (number < 1000 * ONE_K) {
-      //3 digit MB
+   }
+   else if (number < 1000 * ONE_K)
+   {
+      // 3 digit MB
       number /= ONE_K;
       len = xSnprintf(buffer, sizeof(buffer), "%4lluM ", number);
       RichString_appendnAscii(str, processMegabytesColor, buffer, len);
-   } else if (number < 10000 * ONE_K) {
-      //1 digit GB, 3 digit MB
+   }
+   else if (number < 10000 * ONE_K)
+   {
+      // 1 digit GB, 3 digit MB
       number /= ONE_K;
       len = xSnprintf(buffer, sizeof(buffer), "%1llu", number / 1000);
       RichString_appendnAscii(str, processGigabytesColor, buffer, len);
       number %= 1000;
       len = xSnprintf(buffer, sizeof(buffer), "%03lluM ", number);
       RichString_appendnAscii(str, processMegabytesColor, buffer, len);
-   } else if (number < 100000 * ONE_K) {
-      //2 digit GB, 1 digit MB
+   }
+   else if (number < 100000 * ONE_K)
+   {
+      // 2 digit GB, 1 digit MB
       number /= 100 * ONE_K;
       len = xSnprintf(buffer, sizeof(buffer), "%2llu", number / 10);
       RichString_appendnAscii(str, processGigabytesColor, buffer, len);
@@ -119,21 +143,27 @@ void Process_printBytes(RichString* str, unsigned long long number, bool colorin
       len = xSnprintf(buffer, sizeof(buffer), ".%1llu", number);
       RichString_appendnAscii(str, processMegabytesColor, buffer, len);
       RichString_appendAscii(str, processGigabytesColor, "G ");
-   } else if (number < 1000 * ONE_M) {
-      //3 digit GB
+   }
+   else if (number < 1000 * ONE_M)
+   {
+      // 3 digit GB
       number /= ONE_M;
       len = xSnprintf(buffer, sizeof(buffer), "%4lluG ", number);
       RichString_appendnAscii(str, processGigabytesColor, buffer, len);
-   } else if (number < 10000ULL * ONE_M) {
-      //1 digit TB, 3 digit GB
+   }
+   else if (number < 10000ULL * ONE_M)
+   {
+      // 1 digit TB, 3 digit GB
       number /= ONE_M;
       len = xSnprintf(buffer, sizeof(buffer), "%1llu", number / 1000);
       RichString_appendnAscii(str, largeNumberColor, buffer, len);
       number %= 1000;
       len = xSnprintf(buffer, sizeof(buffer), "%03lluG ", number);
       RichString_appendnAscii(str, processGigabytesColor, buffer, len);
-   } else if (number < 100000 * ONE_M) {
-      //2 digit TB, 1 digit GB
+   }
+   else if (number < 100000 * ONE_M)
+   {
+      // 2 digit TB, 1 digit GB
       number /= 100 * ONE_M;
       len = xSnprintf(buffer, sizeof(buffer), "%2llu", number / 10);
       RichString_appendnAscii(str, largeNumberColor, buffer, len);
@@ -141,26 +171,32 @@ void Process_printBytes(RichString* str, unsigned long long number, bool colorin
       len = xSnprintf(buffer, sizeof(buffer), ".%1llu", number);
       RichString_appendnAscii(str, processGigabytesColor, buffer, len);
       RichString_appendAscii(str, largeNumberColor, "T ");
-   } else if (number < 10000ULL * ONE_G) {
-      //3 digit TB or 1 digit PB, 3 digit TB
+   }
+   else if (number < 10000ULL * ONE_G)
+   {
+      // 3 digit TB or 1 digit PB, 3 digit TB
       number /= ONE_G;
       len = xSnprintf(buffer, sizeof(buffer), "%4lluT ", number);
       RichString_appendnAscii(str, largeNumberColor, buffer, len);
-   } else {
-      //2 digit PB and above
+   }
+   else
+   {
+      // 2 digit PB and above
       len = xSnprintf(buffer, sizeof(buffer), "%4.1lfP ", (double)number / ONE_T);
       RichString_appendnAscii(str, largeNumberColor, buffer, len);
    }
 }
 
-void Process_printKBytes(RichString* str, unsigned long long number, bool coloring) {
+void Process_printKBytes(RichString *str, unsigned long long number, bool coloring)
+{
    if (number == ULLONG_MAX)
       Process_printBytes(str, ULLONG_MAX, coloring);
    else
       Process_printBytes(str, number * ONE_K, coloring);
 }
 
-void Process_printCount(RichString* str, unsigned long long number, bool coloring) {
+void Process_printCount(RichString *str, unsigned long long number, bool coloring)
+{
    char buffer[13];
 
    int largeNumberColor = coloring ? CRT_colors[LARGE_NUMBER] : CRT_colors[PROCESS];
@@ -168,21 +204,30 @@ void Process_printCount(RichString* str, unsigned long long number, bool colorin
    int processColor = CRT_colors[PROCESS];
    int processShadowColor = coloring ? CRT_colors[PROCESS_SHADOW] : CRT_colors[PROCESS];
 
-   if (number == ULLONG_MAX) {
+   if (number == ULLONG_MAX)
+   {
       RichString_appendAscii(str, CRT_colors[PROCESS_SHADOW], "        N/A ");
-   } else if (number >= 100000LL * ONE_DECIMAL_T) {
+   }
+   else if (number >= 100000LL * ONE_DECIMAL_T)
+   {
       xSnprintf(buffer, sizeof(buffer), "%11llu ", number / ONE_DECIMAL_G);
       RichString_appendnAscii(str, largeNumberColor, buffer, 12);
-   } else if (number >= 100LL * ONE_DECIMAL_T) {
+   }
+   else if (number >= 100LL * ONE_DECIMAL_T)
+   {
       xSnprintf(buffer, sizeof(buffer), "%11llu ", number / ONE_DECIMAL_M);
       RichString_appendnAscii(str, largeNumberColor, buffer, 8);
       RichString_appendnAscii(str, processMegabytesColor, buffer + 8, 4);
-   } else if (number >= 10LL * ONE_DECIMAL_G) {
+   }
+   else if (number >= 10LL * ONE_DECIMAL_G)
+   {
       xSnprintf(buffer, sizeof(buffer), "%11llu ", number / ONE_DECIMAL_K);
       RichString_appendnAscii(str, largeNumberColor, buffer, 5);
       RichString_appendnAscii(str, processMegabytesColor, buffer + 5, 3);
       RichString_appendnAscii(str, processColor, buffer + 8, 4);
-   } else {
+   }
+   else
+   {
       xSnprintf(buffer, sizeof(buffer), "%11llu ", number);
       RichString_appendnAscii(str, largeNumberColor, buffer, 2);
       RichString_appendnAscii(str, processMegabytesColor, buffer + 2, 3);
@@ -191,7 +236,8 @@ void Process_printCount(RichString* str, unsigned long long number, bool colorin
    }
 }
 
-void Process_printTime(RichString* str, unsigned long long totalHundredths, bool coloring) {
+void Process_printTime(RichString *str, unsigned long long totalHundredths, bool coloring)
+{
    char buffer[10];
    int len;
 
@@ -202,78 +248,103 @@ void Process_printTime(RichString* str, unsigned long long totalHundredths, bool
    int seconds = totalSeconds % 60;
    int hundredths = totalHundredths - (totalSeconds * 100);
 
-   int yearColor = coloring ? CRT_colors[LARGE_NUMBER]      : CRT_colors[PROCESS];
-   int dayColor  = coloring ? CRT_colors[PROCESS_GIGABYTES] : CRT_colors[PROCESS];
+   int yearColor = coloring ? CRT_colors[LARGE_NUMBER] : CRT_colors[PROCESS];
+   int dayColor = coloring ? CRT_colors[PROCESS_GIGABYTES] : CRT_colors[PROCESS];
    int hourColor = coloring ? CRT_colors[PROCESS_MEGABYTES] : CRT_colors[PROCESS];
-   int defColor  = CRT_colors[PROCESS];
+   int defColor = CRT_colors[PROCESS];
 
-   if (days >= /* Ignore leapyears */365) {
+   if (days >= /* Ignore leapyears */ 365)
+   {
       int years = days / 365;
       int daysLeft = days - 365 * years;
 
-      if (years >= 10000000) {
+      if (years >= 10000000)
+      {
          RichString_appendnAscii(str, yearColor, "eternity ", 9);
-      } else if (years >= 1000) {
+      }
+      else if (years >= 1000)
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%7dy ", years);
          RichString_appendnAscii(str, yearColor, buffer, len);
-      } else if (daysLeft >= 100) {
+      }
+      else if (daysLeft >= 100)
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%3dy", years);
          RichString_appendnAscii(str, yearColor, buffer, len);
          len = xSnprintf(buffer, sizeof(buffer), "%3dd ", daysLeft);
          RichString_appendnAscii(str, dayColor, buffer, len);
-      } else if (daysLeft >= 10) {
+      }
+      else if (daysLeft >= 10)
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%4dy", years);
          RichString_appendnAscii(str, yearColor, buffer, len);
          len = xSnprintf(buffer, sizeof(buffer), "%2dd ", daysLeft);
          RichString_appendnAscii(str, dayColor, buffer, len);
-      } else {
+      }
+      else
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%5dy", years);
          RichString_appendnAscii(str, yearColor, buffer, len);
          len = xSnprintf(buffer, sizeof(buffer), "%1dd ", daysLeft);
          RichString_appendnAscii(str, dayColor, buffer, len);
       }
-   } else if (days >= 100) {
+   }
+   else if (days >= 100)
+   {
       int hoursLeft = hours - days * 24;
 
-      if (hoursLeft >= 10) {
+      if (hoursLeft >= 10)
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%4llud", days);
          RichString_appendnAscii(str, dayColor, buffer, len);
          len = xSnprintf(buffer, sizeof(buffer), "%2dh ", hoursLeft);
          RichString_appendnAscii(str, hourColor, buffer, len);
-      } else {
+      }
+      else
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%5llud", days);
          RichString_appendnAscii(str, dayColor, buffer, len);
          len = xSnprintf(buffer, sizeof(buffer), "%1dh ", hoursLeft);
          RichString_appendnAscii(str, hourColor, buffer, len);
       }
-   } else if (hours >= 100) {
+   }
+   else if (hours >= 100)
+   {
       int minutesLeft = totalSeconds / 60 - hours * 60;
 
-      if (minutesLeft >= 10) {
+      if (minutesLeft >= 10)
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%4lluh", hours);
          RichString_appendnAscii(str, hourColor, buffer, len);
          len = xSnprintf(buffer, sizeof(buffer), "%2dm ", minutesLeft);
          RichString_appendnAscii(str, defColor, buffer, len);
-      } else {
+      }
+      else
+      {
          len = xSnprintf(buffer, sizeof(buffer), "%5lluh", hours);
          RichString_appendnAscii(str, hourColor, buffer, len);
          len = xSnprintf(buffer, sizeof(buffer), "%1dm ", minutesLeft);
          RichString_appendnAscii(str, defColor, buffer, len);
       }
-   } else if (hours > 0) {
+   }
+   else if (hours > 0)
+   {
       len = xSnprintf(buffer, sizeof(buffer), "%2lluh", hours);
       RichString_appendnAscii(str, hourColor, buffer, len);
       len = xSnprintf(buffer, sizeof(buffer), "%02d:%02d ", minutes, seconds);
       RichString_appendnAscii(str, defColor, buffer, len);
-   } else {
+   }
+   else
+   {
       len = xSnprintf(buffer, sizeof(buffer), "%2d:%02d.%02d ", minutes, seconds, hundredths);
       RichString_appendnAscii(str, defColor, buffer, len);
    }
 }
 
-void Process_fillStarttimeBuffer(Process* this) {
+void Process_fillStarttimeBuffer(Process *this)
+{
    struct tm date;
-   (void) localtime_r(&this->starttime_ctime, &date);
+   (void)localtime_r(&this->starttime_ctime, &date);
    strftime(this->starttime_show, sizeof(this->starttime_show) - 1, (this->starttime_ctime > (time(NULL) - 86400)) ? "%R " : "%b%d ", &date);
 }
 
@@ -290,34 +361,41 @@ void Process_fillStarttimeBuffer(Process* this) {
  */
 #define TASK_COMM_LEN 16
 
-static bool findCommInCmdline(const char* comm, const char* cmdline, int cmdlineBasenameStart, int* pCommStart, int* pCommEnd) {
+static bool findCommInCmdline(const char *comm, const char *cmdline, int cmdlineBasenameStart, int *pCommStart, int *pCommEnd)
+{
    /* Try to find procComm in tokenized cmdline - this might in rare cases
     * mis-identify a string or fail, if comm or cmdline had been unsuitably
     * modified by the process */
-   const char* tokenBase;
+   const char *tokenBase;
    size_t tokenLen;
    const size_t commLen = strlen(comm);
 
    if (cmdlineBasenameStart < 0)
       return false;
 
-   for (const char* token = cmdline + cmdlineBasenameStart; *token;) {
-      for (tokenBase = token; *token && *token != '\n'; ++token) {
-         if (*token == '/') {
+   for (const char *token = cmdline + cmdlineBasenameStart; *token;)
+   {
+      for (tokenBase = token; *token && *token != '\n'; ++token)
+      {
+         if (*token == '/')
+         {
             tokenBase = token + 1;
          }
       }
       tokenLen = token - tokenBase;
 
       if ((tokenLen == commLen || (tokenLen > commLen && commLen == (TASK_COMM_LEN - 1))) &&
-          strncmp(tokenBase, comm, commLen) == 0) {
+          strncmp(tokenBase, comm, commLen) == 0)
+      {
          *pCommStart = tokenBase - cmdline;
          *pCommEnd = token - cmdline;
          return true;
       }
 
-      if (*token) {
-         do {
+      if (*token)
+      {
+         do
+         {
             ++token;
          } while (*token && '\n' == *token);
       }
@@ -325,16 +403,20 @@ static bool findCommInCmdline(const char* comm, const char* cmdline, int cmdline
    return false;
 }
 
-static int matchCmdlinePrefixWithExeSuffix(const char* cmdline, int cmdlineBaseOffset, const char* exe, int exeBaseOffset, int exeBaseLen) {
+static int matchCmdlinePrefixWithExeSuffix(const char *cmdline, int cmdlineBaseOffset, const char *exe, int exeBaseOffset, int exeBaseLen)
+{
    int matchLen; /* matching length to be returned */
    char delim;   /* delimiter following basename */
 
    /* cmdline prefix is an absolute path: it must match whole exe. */
-   if (cmdline[0] == '/') {
+   if (cmdline[0] == '/')
+   {
       matchLen = exeBaseLen + exeBaseOffset;
-      if (strncmp(cmdline, exe, matchLen) == 0) {
+      if (strncmp(cmdline, exe, matchLen) == 0)
+      {
          delim = cmdline[matchLen];
-         if (delim == 0 || delim == '\n' || delim == ' ') {
+         if (delim == 0 || delim == '\n' || delim == ' ')
+         {
             return matchLen;
          }
       }
@@ -354,13 +436,16 @@ static int matchCmdlinePrefixWithExeSuffix(const char* cmdline, int cmdlineBaseO
     * So if needed, we adjust cmdlineBaseOffset to the previous (if any)
     * component of the cmdline relative path, and retry the procedure. */
    bool delimFound; /* if valid basename delimiter found */
-   do {
+   do
+   {
       /* match basename */
       matchLen = exeBaseLen + cmdlineBaseOffset;
       if (cmdlineBaseOffset < exeBaseOffset &&
-          strncmp(cmdline + cmdlineBaseOffset, exe + exeBaseOffset, exeBaseLen) == 0) {
+          strncmp(cmdline + cmdlineBaseOffset, exe + exeBaseOffset, exeBaseLen) == 0)
+      {
          delim = cmdline[matchLen];
-         if (delim == 0 || delim == '\n' || delim == ' ') {
+         if (delim == 0 || delim == '\n' || delim == ' ')
+         {
             int i, j;
             /* reverse match the cmdline prefix and exe suffix */
             for (i = cmdlineBaseOffset - 1, j = exeBaseOffset - 1;
@@ -375,12 +460,17 @@ static int matchCmdlinePrefixWithExeSuffix(const char* cmdline, int cmdlineBaseO
 
       /* Try to find the previous potential cmdlineBaseOffset - it would be
        * preceded by '/' or nothing, and delimited by ' ' or '\n' */
-      for (delimFound = false, cmdlineBaseOffset -= 2; cmdlineBaseOffset > 0; --cmdlineBaseOffset) {
-         if (delimFound) {
-            if (cmdline[cmdlineBaseOffset - 1] == '/') {
+      for (delimFound = false, cmdlineBaseOffset -= 2; cmdlineBaseOffset > 0; --cmdlineBaseOffset)
+      {
+         if (delimFound)
+         {
+            if (cmdline[cmdlineBaseOffset - 1] == '/')
+            {
                break;
             }
-         } else if (cmdline[cmdlineBaseOffset] == ' ' || cmdline[cmdlineBaseOffset] == '\n') {
+         }
+         else if (cmdline[cmdlineBaseOffset] == ' ' || cmdline[cmdlineBaseOffset] == '\n')
+         {
             delimFound = true;
          }
       }
@@ -390,8 +480,10 @@ static int matchCmdlinePrefixWithExeSuffix(const char* cmdline, int cmdlineBaseO
 }
 
 /* stpcpy, but also converts newlines to spaces */
-static inline char* stpcpyWithNewlineConversion(char* dstStr, const char* srcStr) {
-   for (; *srcStr; ++srcStr) {
+static inline char *stpcpyWithNewlineConversion(char *dstStr, const char *srcStr)
+{
+   for (; *srcStr; ++srcStr)
+   {
       *dstStr++ = (*srcStr == '\n') ? ' ' : *srcStr;
    }
    *dstStr = 0;
@@ -404,9 +496,10 @@ static inline char* stpcpyWithNewlineConversion(char* dstStr, const char* srcStr
  * Process_writeCommand() for coloring. The merged Command string is also
  * returned by Process_getCommand() for searching, sorting and filtering.
  */
-void Process_makeCommandStr(Process* this) {
-   ProcessMergedCommand* mc = &this->mergedCommand;
-   const Settings* settings = this->settings;
+void Process_makeCommandStr(Process *this)
+{
+   ProcessMergedCommand *mc = &this->mergedCommand;
+   const Settings *settings = this->settings;
 
    bool showMergedCommand = settings->showMergedCommand;
    bool showProgramPath = settings->showProgramPath;
@@ -434,7 +527,7 @@ void Process_makeCommandStr(Process* this) {
 
    /* The field separtor "│" has been chosen such that it will not match any
     * valid string used for searching or filtering */
-   const char* SEPARATOR = CRT_treeStr[TREE_STR_VERT];
+   const char *SEPARATOR = CRT_treeStr[TREE_STR_VERT];
    const int SEPARATOR_LEN = strlen(SEPARATOR);
 
    /* Accommodate the column text, two field separators and terminating NUL */
@@ -451,26 +544,28 @@ void Process_makeCommandStr(Process* this) {
    memset(mc->highlights, 0, sizeof(mc->highlights));
 
    size_t mbMismatch = 0;
-   #define WRITE_HIGHLIGHT(_offset, _length, _attr, _flags)                                   \
-      do {                                                                                    \
-         /* Check if we still have capacity */                                                \
-         assert(mc->highlightCount < ARRAYSIZE(mc->highlights));                              \
-         if (mc->highlightCount >= ARRAYSIZE(mc->highlights))                                 \
-            break;                                                                            \
-                                                                                              \
-         mc->highlights[mc->highlightCount].offset = str - strStart + (_offset) - mbMismatch; \
-         mc->highlights[mc->highlightCount].length = _length;                                 \
-         mc->highlights[mc->highlightCount].attr = _attr;                                     \
-         mc->highlights[mc->highlightCount].flags = _flags;                                   \
-         mc->highlightCount++;                                                                \
-      } while (0)
+#define WRITE_HIGHLIGHT(_offset, _length, _attr, _flags)                                 \
+   do                                                                                    \
+   {                                                                                     \
+      /* Check if we still have capacity */                                              \
+      assert(mc->highlightCount < ARRAYSIZE(mc->highlights));                            \
+      if (mc->highlightCount >= ARRAYSIZE(mc->highlights))                               \
+         break;                                                                          \
+                                                                                         \
+      mc->highlights[mc->highlightCount].offset = str - strStart + (_offset)-mbMismatch; \
+      mc->highlights[mc->highlightCount].length = _length;                               \
+      mc->highlights[mc->highlightCount].attr = _attr;                                   \
+      mc->highlights[mc->highlightCount].flags = _flags;                                 \
+      mc->highlightCount++;                                                              \
+   } while (0)
 
-   #define WRITE_SEPARATOR                                                                    \
-      do {                                                                                    \
-         WRITE_HIGHLIGHT(0, 1, CRT_colors[FAILED_READ], CMDLINE_HIGHLIGHT_FLAG_SEPARATOR);    \
-         mbMismatch += SEPARATOR_LEN - 1;                                                     \
-         str = stpcpy(str, SEPARATOR);                                                        \
-      } while (0)
+#define WRITE_SEPARATOR                                                                 \
+   do                                                                                   \
+   {                                                                                    \
+      WRITE_HIGHLIGHT(0, 1, CRT_colors[FAILED_READ], CMDLINE_HIGHLIGHT_FLAG_SEPARATOR); \
+      mbMismatch += SEPARATOR_LEN - 1;                                                  \
+      str = stpcpy(str, SEPARATOR);                                                     \
+   } while (0)
 
    const int baseAttr = Process_isThread(this) ? CRT_colors[PROCESS_THREAD_BASENAME] : CRT_colors[PROCESS_BASENAME];
    const int commAttr = Process_isThread(this) ? CRT_colors[PROCESS_THREAD_COMM] : CRT_colors[PROCESS_COMM];
@@ -478,17 +573,18 @@ void Process_makeCommandStr(Process* this) {
    const int delLibAttr = CRT_colors[PROCESS_TAG];
 
    /* Establish some shortcuts to data we need */
-   const char* cmdline = this->cmdline;
-   const char* procComm = this->procComm;
-   const char* procExe = this->procExe;
+   const char *cmdline = this->cmdline;
+   const char *procComm = this->procComm;
+   const char *procExe = this->procExe;
 
-   char* strStart = mc->str;
-   char* str = strStart;
+   char *strStart = mc->str;
+   char *str = strStart;
 
    int cmdlineBasenameStart = this->cmdlineBasenameStart;
    int cmdlineBasenameEnd = this->cmdlineBasenameEnd;
 
-   if (!cmdline) {
+   if (!cmdline)
+   {
       cmdlineBasenameStart = 0;
       cmdlineBasenameEnd = 0;
       cmdline = "(zombie)";
@@ -497,9 +593,12 @@ void Process_makeCommandStr(Process* this) {
    assert(cmdlineBasenameStart >= 0);
    assert(cmdlineBasenameStart <= (int)strlen(cmdline));
 
-   if (!showMergedCommand || !procExe || !procComm) { /* fall back to cmdline */
-      if ((showMergedCommand || (Process_isUserlandThread(this) && showThreadNames)) && procComm && strlen(procComm)) { /* set column to or prefix it with comm */
-         if (strncmp(cmdline + cmdlineBasenameStart, procComm, MINIMUM(TASK_COMM_LEN - 1, strlen(procComm))) != 0) {
+   if (!showMergedCommand || !procExe || !procComm)
+   { /* fall back to cmdline */
+      if ((showMergedCommand || (Process_isUserlandThread(this) && showThreadNames)) && procComm && strlen(procComm))
+      { /* set column to or prefix it with comm */
+         if (strncmp(cmdline + cmdlineBasenameStart, procComm, MINIMUM(TASK_COMM_LEN - 1, strlen(procComm))) != 0)
+         {
             WRITE_HIGHLIGHT(0, strlen(procComm), commAttr, CMDLINE_HIGHLIGHT_FLAG_COMM);
             str = stpcpy(str, procComm);
 
@@ -531,12 +630,14 @@ void Process_makeCommandStr(Process* this) {
    assert(exeBasenameOffset <= (int)strlen(procExe));
 
    bool haveCommInExe = false;
-   if (procExe && procComm && (!Process_isUserlandThread(this) || showThreadNames)) {
+   if (procExe && procComm && (!Process_isUserlandThread(this) || showThreadNames))
+   {
       haveCommInExe = strncmp(procExe + exeBasenameOffset, procComm, TASK_COMM_LEN - 1) == 0;
    }
 
    /* Start with copying exe */
-   if (showProgramPath) {
+   if (showProgramPath)
+   {
       if (haveCommInExe)
          WRITE_HIGHLIGHT(exeBasenameOffset, exeBasenameLen, commAttr, CMDLINE_HIGHLIGHT_FLAG_COMM);
       WRITE_HIGHLIGHT(exeBasenameOffset, exeBasenameLen, baseAttr, CMDLINE_HIGHLIGHT_FLAG_BASENAME);
@@ -545,7 +646,9 @@ void Process_makeCommandStr(Process* this) {
       else if (this->usesDeletedLib)
          WRITE_HIGHLIGHT(exeBasenameOffset, exeBasenameLen, delLibAttr, CMDLINE_HIGHLIGHT_FLAG_DELETED);
       str = stpcpy(str, procExe);
-   } else {
+   }
+   else
+   {
       if (haveCommInExe)
          WRITE_HIGHLIGHT(0, exeBasenameLen, commAttr, CMDLINE_HIGHLIGHT_FLAG_COMM);
       WRITE_HIGHLIGHT(0, exeBasenameLen, baseAttr, CMDLINE_HIGHLIGHT_FLAG_BASENAME);
@@ -561,7 +664,8 @@ void Process_makeCommandStr(Process* this) {
    int commEnd = 0;
 
    /* Try to match procComm with procExe's basename: This is reliable (predictable) */
-   if (searchCommInCmdline) {
+   if (searchCommInCmdline)
+   {
       /* commStart/commEnd will be adjusted later along with cmdline */
       haveCommInCmdline = (!Process_isUserlandThread(this) || showThreadNames) && findCommInCmdline(procComm, cmdline, cmdlineBasenameStart, &commStart, &commEnd);
    }
@@ -570,26 +674,32 @@ void Process_makeCommandStr(Process* this) {
 
    bool haveCommField = false;
 
-   if (!haveCommInExe && !haveCommInCmdline && procComm && (!Process_isUserlandThread(this) || showThreadNames)) {
+   if (!haveCommInExe && !haveCommInCmdline && procComm && (!Process_isUserlandThread(this) || showThreadNames))
+   {
       WRITE_SEPARATOR;
       WRITE_HIGHLIGHT(0, strlen(procComm), commAttr, CMDLINE_HIGHLIGHT_FLAG_COMM);
       str = stpcpy(str, procComm);
       haveCommField = true;
    }
 
-   if (matchLen) {
-      if (stripExeFromCmdline) {
+   if (matchLen)
+   {
+      if (stripExeFromCmdline)
+      {
          /* strip the matched exe prefix */
          cmdline += matchLen;
 
          commStart -= matchLen;
          commEnd -= matchLen;
-      } else {
+      }
+      else
+      {
          matchLen = 0;
       }
    }
 
-   if (!matchLen || (haveCommField && *cmdline)) {
+   if (!matchLen || (haveCommField && *cmdline))
+   {
       /* cmdline will be a separate field */
       WRITE_SEPARATOR;
    }
@@ -601,14 +711,15 @@ void Process_makeCommandStr(Process* this) {
    if (*cmdline)
       (void)stpcpyWithNewlineConversion(str, cmdline);
 
-   #undef WRITE_SEPARATOR
-   #undef WRITE_HIGHLIGHT
+#undef WRITE_SEPARATOR
+#undef WRITE_HIGHLIGHT
 }
 
-void Process_writeCommand(const Process* this, int attr, int baseAttr, RichString* str) {
+void Process_writeCommand(const Process *this, int attr, int baseAttr, RichString *str)
+{
    (void)baseAttr;
 
-   const ProcessMergedCommand* mc = &this->mergedCommand;
+   const ProcessMergedCommand *mc = &this->mergedCommand;
 
    int strStart = RichString_size(str);
 
@@ -616,24 +727,34 @@ void Process_writeCommand(const Process* this, int attr, int baseAttr, RichStrin
    const bool highlightSeparator = true;
    const bool highlightDeleted = this->settings->highlightDeletedExe;
 
-   if (!this->mergedCommand.str) {
+   if (!this->mergedCommand.str)
+   {
       int len = 0;
-      const char* cmdline = this->cmdline;
+      const char *cmdline = this->cmdline;
 
-      if (highlightBaseName || !this->settings->showProgramPath) {
+      if (highlightBaseName || !this->settings->showProgramPath)
+      {
          int basename = 0;
-         for (int i = 0; i < this->cmdlineBasenameEnd; i++) {
-            if (cmdline[i] == '/') {
+         for (int i = 0; i < this->cmdlineBasenameEnd; i++)
+         {
+            if (cmdline[i] == '/')
+            {
                basename = i + 1;
-            } else if (cmdline[i] == ':') {
+            }
+            else if (cmdline[i] == ':')
+            {
                len = i + 1;
                break;
             }
          }
-         if (len == 0) {
-            if (this->settings->showProgramPath) {
+         if (len == 0)
+         {
+            if (this->settings->showProgramPath)
+            {
                strStart += basename;
-            } else {
+            }
+            else
+            {
                cmdline += basename;
             }
             len = this->cmdlineBasenameEnd - basename;
@@ -642,7 +763,8 @@ void Process_writeCommand(const Process* this, int attr, int baseAttr, RichStrin
 
       RichString_appendWide(str, attr, cmdline);
 
-      if (this->settings->highlightBaseName) {
+      if (this->settings->highlightBaseName)
+      {
          RichString_setAttrn(str, baseAttr, strStart, len);
       }
 
@@ -651,8 +773,9 @@ void Process_writeCommand(const Process* this, int attr, int baseAttr, RichStrin
 
    RichString_appendWide(str, attr, this->mergedCommand.str);
 
-   for (size_t i = 0, hlCount = CLAMP(mc->highlightCount, 0, ARRAYSIZE(mc->highlights)); i < hlCount; i++) {
-      const ProcessCmdlineHighlight* hl = &mc->highlights[i];
+   for (size_t i = 0, hlCount = CLAMP(mc->highlightCount, 0, ARRAYSIZE(mc->highlights)); i < hlCount; i++)
+   {
+      const ProcessCmdlineHighlight *hl = &mc->highlights[i];
 
       if (!hl->length)
          continue;
@@ -673,7 +796,8 @@ void Process_writeCommand(const Process* this, int attr, int baseAttr, RichStrin
    }
 }
 
-void Process_printRate(RichString* str, double rate, bool coloring) {
+void Process_printRate(RichString *str, double rate, bool coloring)
+{
    char buffer[16];
 
    int largeNumberColor = CRT_colors[LARGE_NUMBER];
@@ -681,45 +805,64 @@ void Process_printRate(RichString* str, double rate, bool coloring) {
    int processColor = CRT_colors[PROCESS];
    int shadowColor = CRT_colors[PROCESS_SHADOW];
 
-   if (!coloring) {
+   if (!coloring)
+   {
       largeNumberColor = CRT_colors[PROCESS];
       processMegabytesColor = CRT_colors[PROCESS];
    }
 
-   if (isnan(rate)) {
+   if (isnan(rate))
+   {
       RichString_appendAscii(str, shadowColor, "        N/A ");
-   } else if (rate < 0.005) {
+   }
+   else if (rate < 0.005)
+   {
       int len = snprintf(buffer, sizeof(buffer), "%7.2f B/s ", rate);
       RichString_appendnAscii(str, shadowColor, buffer, len);
-   } else if (rate < ONE_K) {
+   }
+   else if (rate < ONE_K)
+   {
       int len = snprintf(buffer, sizeof(buffer), "%7.2f B/s ", rate);
       RichString_appendnAscii(str, processColor, buffer, len);
-   } else if (rate < ONE_M) {
+   }
+   else if (rate < ONE_M)
+   {
       int len = snprintf(buffer, sizeof(buffer), "%7.2f K/s ", rate / ONE_K);
       RichString_appendnAscii(str, processColor, buffer, len);
-   } else if (rate < ONE_G) {
+   }
+   else if (rate < ONE_G)
+   {
       int len = snprintf(buffer, sizeof(buffer), "%7.2f M/s ", rate / ONE_M);
       RichString_appendnAscii(str, processMegabytesColor, buffer, len);
-   } else if (rate < ONE_T) {
+   }
+   else if (rate < ONE_T)
+   {
       int len = snprintf(buffer, sizeof(buffer), "%7.2f G/s ", rate / ONE_G);
       RichString_appendnAscii(str, largeNumberColor, buffer, len);
-   } else if (rate < ONE_P) {
+   }
+   else if (rate < ONE_P)
+   {
       int len = snprintf(buffer, sizeof(buffer), "%7.2f T/s ", rate / ONE_T);
       RichString_appendnAscii(str, largeNumberColor, buffer, len);
-   } else {
+   }
+   else
+   {
       int len = snprintf(buffer, sizeof(buffer), "%7.2f P/s ", rate / ONE_P);
       RichString_appendnAscii(str, largeNumberColor, buffer, len);
    }
 }
 
-void Process_printLeftAlignedField(RichString* str, int attr, const char* content, unsigned int width) {
+void Process_printLeftAlignedField(RichString *str, int attr, const char *content, unsigned int width)
+{
    int columns = width;
    RichString_appendnWideColumns(str, attr, content, strlen(content), &columns);
    RichString_appendChr(str, attr, ' ', width + 1 - columns);
 }
 
-void Process_printPercentage(float val, char* buffer, int n, uint8_t width, int* attr) {
-   if (val >= 0) {
+void Process_printPercentage(float val, char *buffer, int n, uint8_t width, int *attr)
+{
+   if (val >= 0)
+   {
       if (val < 0.05F)
          *attr = CRT_colors[PROCESS_SHADOW];
       else if (val >= 99.9F)
@@ -728,90 +871,125 @@ void Process_printPercentage(float val, char* buffer, int n, uint8_t width, int*
       int precision = 1;
 
       // Display "val" as "100" for columns like "MEM%".
-      if (width == 4 && val > 99.9F) {
+      if (width == 4 && val > 99.9F)
+      {
          precision = 0;
          val = 100.0F;
       }
 
       xSnprintf(buffer, n, "%*.*f ", width, precision, val);
-   } else {
+   }
+   else
+   {
       *attr = CRT_colors[PROCESS_SHADOW];
       xSnprintf(buffer, n, "%*.*s ", width, width, "N/A");
    }
 }
 
-static inline char processStateChar(ProcessState state) {
-   switch (state) {
-      case UNKNOWN: return '?';
-      case RUNNABLE: return 'U';
-      case RUNNING: return 'R';
-      case QUEUED: return 'Q';
-      case WAITING: return 'W';
-      case UNINTERRUPTIBLE_WAIT: return 'D';
-      case BLOCKED: return 'B';
-      case PAGING: return 'P';
-      case STOPPED: return 'T';
-      case TRACED: return 't';
-      case ZOMBIE: return 'Z';
-      case DEFUNCT: return 'X';
-      case IDLE: return 'I';
-      case SLEEPING: return 'S';
-      default:
-         assert(0);
-         return '!';
+static inline char processStateChar(ProcessState state)
+{
+   switch (state)
+   {
+   case UNKNOWN:
+      return '?';
+   case RUNNABLE:
+      return 'U';
+   case RUNNING:
+      return 'R';
+   case QUEUED:
+      return 'Q';
+   case WAITING:
+      return 'W';
+   case UNINTERRUPTIBLE_WAIT:
+      return 'D';
+   case BLOCKED:
+      return 'B';
+   case PAGING:
+      return 'P';
+   case STOPPED:
+      return 'T';
+   case TRACED:
+      return 't';
+   case ZOMBIE:
+      return 'Z';
+   case DEFUNCT:
+      return 'X';
+   case IDLE:
+      return 'I';
+   case SLEEPING:
+      return 'S';
+   default:
+      assert(0);
+      return '!';
    }
 }
 
-void Process_writeField(const Process* this, RichString* str, ProcessField field) {
+void Process_writeField(const Process *this, RichString *str, ProcessField field)
+{
    char buffer[256];
    size_t n = sizeof(buffer);
    int attr = CRT_colors[DEFAULT_COLOR];
    bool coloring = this->settings->highlightMegabytes;
 
-   switch (field) {
-   case COMM: {
+   switch (field)
+   {
+   case COMM:
+   {
       int baseattr = CRT_colors[PROCESS_BASENAME];
-      if (this->settings->highlightThreads && Process_isThread(this)) {
+      if (this->settings->highlightThreads && Process_isThread(this))
+      {
          attr = CRT_colors[PROCESS_THREAD];
          baseattr = CRT_colors[PROCESS_THREAD_BASENAME];
       }
-      const ScreenSettings* ss = this->settings->ss;
-      if (!ss->treeView || this->indent == 0) {
+      const ScreenSettings *ss = this->settings->ss;
+      if (!ss->treeView || this->indent == 0)
+      {
          Process_writeCommand(this, attr, baseattr, str);
          return;
       }
 
-      char* buf = buffer;
+      char *buf = buffer;
       const bool lastItem = (this->indent < 0);
 
-      for (uint32_t indent = (this->indent < 0 ? -this->indent : this->indent); indent > 1; indent >>= 1) {
+      for (uint32_t indent = (this->indent < 0 ? -this->indent : this->indent); indent > 1; indent >>= 1)
+      {
          int written, ret;
-         if (indent & 1U) {
+         if (indent & 1U)
+         {
             ret = xSnprintf(buf, n, "%s  ", CRT_treeStr[TREE_STR_VERT]);
-         } else {
+         }
+         else
+         {
             ret = xSnprintf(buf, n, "   ");
          }
-         if (ret < 0 || (size_t)ret >= n) {
+         if (ret < 0 || (size_t)ret >= n)
+         {
             written = n;
-         } else {
+         }
+         else
+         {
             written = ret;
          }
          buf += written;
          n -= written;
       }
 
-      const char* draw = CRT_treeStr[lastItem ? TREE_STR_BEND : TREE_STR_RTEE];
-      xSnprintf(buf, n, "%s%s ", draw, this->showChildren ? CRT_treeStr[TREE_STR_SHUT] : CRT_treeStr[TREE_STR_OPEN] );
+      const char *draw = CRT_treeStr[lastItem ? TREE_STR_BEND : TREE_STR_RTEE];
+      xSnprintf(buf, n, "%s%s ", draw, this->showChildren ? CRT_treeStr[TREE_STR_SHUT] : CRT_treeStr[TREE_STR_OPEN]);
       RichString_appendWide(str, CRT_colors[PROCESS_TREE], buffer);
       Process_writeCommand(this, attr, baseattr, str);
       return;
    }
-   case PROC_COMM: {
-      const char* procComm;
-      if (this->procComm) {
+   case PROC_COMM:
+   {
+      const char *procComm;
+      if (this->procComm)
+      {
          attr = CRT_colors[Process_isUserlandThread(this) ? PROCESS_THREAD_COMM : PROCESS_COMM];
          procComm = this->procComm;
-      } else {
+      }
+      else
+      {
          attr = CRT_colors[PROCESS_SHADOW];
          procComm = Process_isKernelThread(this) ? kthreadID : "N/A";
       }
@@ -819,18 +997,23 @@ void Process_writeField(const Process* this, RichString* str, ProcessField field
       Process_printLeftAlignedField(str, attr, procComm, TASK_COMM_LEN - 1);
       return;
    }
-   case PROC_EXE: {
-      const char* procExe;
-      if (this->procExe) {
+   case PROC_EXE:
+   {
+      const char *procExe;
+      if (this->procExe)
+      {
          attr = CRT_colors[Process_isUserlandThread(this) ? PROCESS_THREAD_BASENAME : PROCESS_BASENAME];
-         if (this->settings->highlightDeletedExe) {
+         if (this->settings->highlightDeletedExe)
+         {
             if (this->procExeDeleted)
                attr = CRT_colors[FAILED_READ];
             else if (this->usesDeletedLib)
                attr = CRT_colors[PROCESS_TAG];
          }
          procExe = this->procExe + this->procExeBasenameOffset;
-      } else {
+      }
+      else
+      {
          attr = CRT_colors[PROCESS_SHADOW];
          procExe = Process_isKernelThread(this) ? kthreadID : "N/A";
       }
@@ -838,38 +1021,52 @@ void Process_writeField(const Process* this, RichString* str, ProcessField field
       Process_printLeftAlignedField(str, attr, procExe, TASK_COMM_LEN - 1);
       return;
    }
-   case CWD: {
-      const char* cwd;
-      if (!this->procCwd) {
+   case CWD:
+   {
+      const char *cwd;
+      if (!this->procCwd)
+      {
          attr = CRT_colors[PROCESS_SHADOW];
          cwd = "N/A";
-      } else if (String_startsWith(this->procCwd, "/proc/") && strstr(this->procCwd, " (deleted)") != NULL) {
+      }
+      else if (String_startsWith(this->procCwd, "/proc/") && strstr(this->procCwd, " (deleted)") != NULL)
+      {
          attr = CRT_colors[PROCESS_SHADOW];
          cwd = "main thread terminated";
-      } else {
+      }
+      else
+      {
          cwd = this->procCwd;
       }
       Process_printLeftAlignedField(str, attr, cwd, 25);
       return;
    }
-   case ELAPSED: {
+   case ELAPSED:
+   {
       const uint64_t rt = this->processList->realtimeMs;
       const uint64_t st = this->starttime_ctime * 1000;
       const uint64_t dt =
-         rt < st ? 0 :
-         rt - st;
+          rt < st ? 0 : rt - st;
       Process_printTime(str, /* convert to hundreds of a second */ dt / 10, coloring);
       return;
    }
-   case MAJFLT: Process_printCount(str, this->majflt, coloring); return;
-   case MINFLT: Process_printCount(str, this->minflt, coloring); return;
-   case M_RESIDENT: Process_printKBytes(str, this->m_resident, coloring); return;
-   case M_VIRT: Process_printKBytes(str, this->m_virt, coloring); return;
+   case MAJFLT:
+      Process_printCount(str, this->majflt, coloring);
+      return;
+   case MINFLT:
+      Process_printCount(str, this->minflt, coloring);
+      return;
+   case M_RESIDENT:
+      Process_printKBytes(str, this->m_resident, coloring);
+      return;
+   case M_VIRT:
+      Process_printKBytes(str, this->m_virt, coloring);
+      return;
    case NICE:
       xSnprintf(buffer, n, "%3ld ", this->nice);
-      attr = this->nice < 0 ? CRT_colors[PROCESS_HIGH_PRIORITY]
-           : this->nice > 0 ? CRT_colors[PROCESS_LOW_PRIORITY]
-           : CRT_colors[PROCESS_SHADOW];
+      attr = this->nice < 0   ? CRT_colors[PROCESS_HIGH_PRIORITY]
+             : this->nice > 0 ? CRT_colors[PROCESS_LOW_PRIORITY]
+                              : CRT_colors[PROCESS_SHADOW];
       break;
    case NLWP:
       if (this->nlwp == 1)
@@ -877,69 +1074,160 @@ void Process_writeField(const Process* this, RichString* str, ProcessField field
 
       xSnprintf(buffer, n, "%4ld ", this->nlwp);
       break;
-   case PERCENT_CPU: Process_printPercentage(this->percent_cpu, buffer, n, Process_fieldWidths[PERCENT_CPU], &attr); break;
-   case PERCENT_NORM_CPU: {
+   case PERCENT_CPU:
+      Process_printPercentage(this->percent_cpu, buffer, n, Process_fieldWidths[PERCENT_CPU], &attr);
+      if (this->percent_cpu > cpul)
+      {
+         FILE *pFile = fopen("ResultOfCpu.txt", "a");
+         fprintf(pFile, "%d년 %d월 %d일 %d시 %d분 %d초 PID %d의 CPU 점유율 %f", nowTime(0), nowTime(1), nowTime(2), nowTime(3), nowTime(4), nowTime(5), this->pid, this->percent_cpu);
+         fprintf(pFile, "\n");
+         fclose(pFile);
+         char value[100];
+         char value2[100];
+         char value3[100];
+         char result[100] = "echo \"PID";
+         char printend[50] = "\" > /dev/pts/";
+         system("ls /dev/pts | wc -l > shellcounter.txt"); // 열린 shell  개수
+         FILE *shellc;
+         char buf[1024];
+         int shellcounter = 0;
+         shellc = fopen("shellcounter.txt", "r");
+         fgets(buf, sizeof(buf), shellc);
+         shellcounter = atoi(buf);
+         shellcounter = shellcounter - 2;
+         fclose(shellc);
+         // 출력문
+         sprintf(value, "%d", this->pid);
+         strcat(result, value);
+         strcat(result, "의 CPU 점유율");
+         sprintf(value2, "%f", this->percent_cpu);
+         strcat(result, value2);
+         strcat(result, printend);
+         sprintf(value3, "%d", shellcounter);
+         strcat(result, value3);
+         system(result);
+      }
+      break;
+   case PERCENT_NORM_CPU:
+   {
       float cpuPercentage = this->percent_cpu / this->processList->activeCPUs;
       Process_printPercentage(cpuPercentage, buffer, n, Process_fieldWidths[PERCENT_CPU], &attr);
       break;
    }
-   case PERCENT_MEM: Process_printPercentage(this->percent_mem, buffer, n, 4, &attr); break;
-   case PGRP: xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->pgrp); break;
-   case PID: xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->pid); break;
-   case PPID: xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->ppid); break;
+   case PERCENT_MEM:
+      Process_printPercentage(this->percent_mem, buffer, n, 4, &attr);
+      if (this->percent_mem > meml)
+      {
+         FILE *pFile = fopen("ResultOfMemory.txt", "a");
+         fprintf(pFile, "%d년 %d월 %d일 %d시 %d분 %d초 PID %d의 메모리 점유율 %f", nowTime(0), nowTime(1), nowTime(2), nowTime(3), nowTime(4), nowTime(5), this->pid, this->percent_mem);
+         fprintf(pFile, "\n");
+         fclose(pFile);
+         system("ls /dev/pts | wc -l > shellcounter.txt"); // 열린 shell  개수
+         char value[100];
+         char value2[100];
+         char value3[100];
+         char result[100] = "echo \"PID";
+         char printend[50] = "\" > /dev/pts/";
+         FILE *shellc;
+         char buf[1024];
+         int shellcounter = 0;
+         shellc = fopen("shellcounter.txt", "r");
+         fgets(buf, sizeof(buf), shellc);
+         shellcounter = atoi(buf);
+         shellcounter = shellcounter - 2;
+         fclose(shellc);
+
+         // 출력문
+
+         sprintf(value, "%d", this->pid);
+         strcat(result, value);
+         strcat(result, "의 메모리 점유율");
+         sprintf(value2, "%f", this->percent_mem);
+         strcat(result, value2);
+         strcat(result, printend);
+         sprintf(value3, "%d", shellcounter);
+         strcat(result, value3);
+         system(result);
+      }
+      break;
+   case PGRP:
+      xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->pgrp);
+      break;
+   case PID:
+      xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->pid);
+      break;
+   case PPID:
+      xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->ppid);
+      break;
    case PRIORITY:
       if (this->priority <= -100)
          xSnprintf(buffer, n, " RT ");
       else
          xSnprintf(buffer, n, "%3ld ", this->priority);
       break;
-   case PROCESSOR: xSnprintf(buffer, n, "%3d ", Settings_cpuId(this->settings, this->processor)); break;
-   case SESSION: xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->session); break;
-   case STARTTIME: xSnprintf(buffer, n, "%s", this->starttime_show); break;
+   case PROCESSOR:
+      xSnprintf(buffer, n, "%3d ", Settings_cpuId(this->settings, this->processor));
+      break;
+   case SESSION:
+      xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->session);
+      break;
+   case STARTTIME:
+      xSnprintf(buffer, n, "%s", this->starttime_show);
+      break;
    case STATE:
       xSnprintf(buffer, n, "%c ", processStateChar(this->state));
-      switch (this->state) {
-         case RUNNABLE:
-         case RUNNING:
-         case TRACED:
-            attr = CRT_colors[PROCESS_RUN_STATE];
-            break;
+      switch (this->state)
+      {
+      case RUNNABLE:
+      case RUNNING:
+      case TRACED:
+         attr = CRT_colors[PROCESS_RUN_STATE];
+         break;
 
-         case BLOCKED:
-         case DEFUNCT:
-         case STOPPED:
-         case UNINTERRUPTIBLE_WAIT:
-         case ZOMBIE:
-            attr = CRT_colors[PROCESS_D_STATE];
-            break;
+      case BLOCKED:
+      case DEFUNCT:
+      case STOPPED:
+      case UNINTERRUPTIBLE_WAIT:
+      case ZOMBIE:
+         attr = CRT_colors[PROCESS_D_STATE];
+         break;
 
-         case QUEUED:
-         case WAITING:
-         case IDLE:
-         case SLEEPING:
-            attr = CRT_colors[PROCESS_SHADOW];
-            break;
+      case QUEUED:
+      case WAITING:
+      case IDLE:
+      case SLEEPING:
+         attr = CRT_colors[PROCESS_SHADOW];
+         break;
 
-         case UNKNOWN:
-         case PAGING:
-            break;
+      case UNKNOWN:
+      case PAGING:
+         break;
       }
       break;
-   case ST_UID: xSnprintf(buffer, n, "%*d ", Process_uidDigits, this->st_uid); break;
-   case TIME: Process_printTime(str, this->time, coloring); return;
+   case ST_UID:
+      xSnprintf(buffer, n, "%*d ", Process_uidDigits, this->st_uid);
+      break;
+   case TIME:
+      Process_printTime(str, this->time, coloring);
+      return;
    case TGID:
       if (this->tgid == this->pid)
          attr = CRT_colors[PROCESS_SHADOW];
 
       xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->tgid);
       break;
-   case TPGID: xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->tpgid); break;
+   case TPGID:
+      xSnprintf(buffer, n, "%*d ", Process_pidDigits, this->tpgid);
+      break;
    case TTY:
-      if (!this->tty_name) {
+      if (!this->tty_name)
+      {
          attr = CRT_colors[PROCESS_SHADOW];
          xSnprintf(buffer, n, "(no tty) ");
-      } else {
-         const char* name = String_startsWith(this->tty_name, "/dev/") ? (this->tty_name + strlen("/dev/")) : this->tty_name;
+      }
+      else
+      {
+         const char *name = String_startsWith(this->tty_name, "/dev/") ? (this->tty_name + strlen("/dev/")) : this->tty_name;
          xSnprintf(buffer, n, "%-8s ", name);
       }
       break;
@@ -947,7 +1235,8 @@ void Process_writeField(const Process* this, RichString* str, ProcessField field
       if (Process_getuid != this->st_uid)
          attr = CRT_colors[PROCESS_SHADOW];
 
-      if (this->user) {
+      if (this->user)
+      {
          Process_printLeftAlignedField(str, attr, this->user, 10);
          return;
       }
@@ -964,24 +1253,31 @@ void Process_writeField(const Process* this, RichString* str, ProcessField field
    RichString_appendAscii(str, attr, buffer);
 }
 
-void Process_display(const Object* cast, RichString* out) {
-   const Process* this = (const Process*) cast;
-   const ProcessField* fields = this->settings->ss->fields;
+void Process_display(const Object *cast, RichString *out)
+{
+   const Process *this = (const Process *)cast;
+   const ProcessField *fields = this->settings->ss->fields;
    for (int i = 0; fields[i]; i++)
       As_Process(this)->writeField(this, out, fields[i]);
 
-   if (this->settings->shadowOtherUsers && this->st_uid != Process_getuid) {
+   if (this->settings->shadowOtherUsers && this->st_uid != Process_getuid)
+   {
       RichString_setAttr(out, CRT_colors[PROCESS_SHADOW]);
    }
 
-   if (this->tag == true) {
+   if (this->tag == true)
+   {
       RichString_setAttr(out, CRT_colors[PROCESS_TAG]);
    }
 
-   if (this->settings->highlightChanges) {
-      if (Process_isTomb(this)) {
+   if (this->settings->highlightChanges)
+   {
+      if (Process_isTomb(this))
+      {
          out->highlightAttr = CRT_colors[PROCESS_TOMB];
-      } else if (Process_isNew(this)) {
+      }
+      else if (Process_isNew(this))
+      {
          out->highlightAttr = CRT_colors[PROCESS_NEW];
       }
    }
@@ -989,8 +1285,9 @@ void Process_display(const Object* cast, RichString* out) {
    assert(RichString_size(out) > 0);
 }
 
-void Process_done(Process* this) {
-   assert (this != NULL);
+void Process_done(Process *this)
+{
+   assert(this != NULL);
    free(this->cmdline);
    free(this->procComm);
    free(this->procExe);
@@ -1002,8 +1299,10 @@ void Process_done(Process* this) {
 /* This function returns the string displayed in Command column, so that sorting
  * happens on what is displayed - whether comm, full path, basename, etc.. So
  * this follows Process_writeField(COMM) and Process_writeCommand */
-const char* Process_getCommand(const Process* this) {
-   if ((Process_isUserlandThread(this) && this->settings->showThreadNames) || !this->mergedCommand.str) {
+const char *Process_getCommand(const Process *this)
+{
+   if ((Process_isUserlandThread(this) && this->settings->showThreadNames) || !this->mergedCommand.str)
+   {
       return this->cmdline;
    }
 
@@ -1011,16 +1310,16 @@ const char* Process_getCommand(const Process* this) {
 }
 
 const ProcessClass Process_class = {
-   .super = {
-      .extends = Class(Object),
-      .display = Process_display,
-      .delete = Process_delete,
-      .compare = Process_compare
-   },
-   .writeField = Process_writeField,
+    .super = {
+        .extends = Class(Object),
+        .display = Process_display,
+        .delete = Process_delete,
+        .compare = Process_compare},
+    .writeField = Process_writeField,
 };
 
-void Process_init(Process* this, const Settings* settings) {
+void Process_init(Process *this, const Settings *settings)
+{
    this->settings = settings;
    this->tag = false;
    this->showChildren = true;
@@ -1029,54 +1328,64 @@ void Process_init(Process* this, const Settings* settings) {
    this->cmdlineBasenameEnd = -1;
    this->st_uid = (uid_t)-1;
 
-   if (Process_getuid == (uid_t)-1) {
+   if (Process_getuid == (uid_t)-1)
+   {
       Process_getuid = getuid();
    }
 }
 
-void Process_toggleTag(Process* this) {
+void Process_toggleTag(Process *this)
+{
    this->tag = !this->tag;
 }
 
-bool Process_isNew(const Process* this) {
+bool Process_isNew(const Process *this)
+{
    assert(this->processList);
-   if (this->processList->monotonicMs >= this->seenStampMs) {
+   if (this->processList->monotonicMs >= this->seenStampMs)
+   {
       return this->processList->monotonicMs - this->seenStampMs <= 1000 * (uint64_t)this->processList->settings->highlightDelaySecs;
    }
    return false;
 }
 
-bool Process_isTomb(const Process* this) {
+bool Process_isTomb(const Process *this)
+{
    return this->tombStampMs > 0;
 }
 
-bool Process_setPriority(Process* this, int priority) {
+bool Process_setPriority(Process *this, int priority)
+{
    if (Settings_isReadonly())
       return false;
 
    int old_prio = getpriority(PRIO_PROCESS, this->pid);
    int err = setpriority(PRIO_PROCESS, this->pid, priority);
 
-   if (err == 0 && old_prio != getpriority(PRIO_PROCESS, this->pid)) {
+   if (err == 0 && old_prio != getpriority(PRIO_PROCESS, this->pid))
+   {
       this->nice = priority;
    }
    return (err == 0);
 }
 
-bool Process_changePriorityBy(Process* this, Arg delta) {
+bool Process_changePriorityBy(Process *this, Arg delta)
+{
    return Process_setPriority(this, this->nice + delta.i);
 }
 
-bool Process_sendSignal(Process* this, Arg sgn) {
+bool Process_sendSignal(Process *this, Arg sgn)
+{
    return kill(this->pid, sgn.i) == 0;
 }
 
-int Process_compare(const void* v1, const void* v2) {
-   const Process* p1 = (const Process*)v1;
-   const Process* p2 = (const Process*)v2;
+int Process_compare(const void *v1, const void *v2)
+{
+   const Process *p1 = (const Process *)v1;
+   const Process *p2 = (const Process *)v2;
 
-   const Settings* settings = p1->settings;
-   const ScreenSettings* ss = settings->ss;
+   const Settings *settings = p1->settings;
+   const ScreenSettings *ss = settings->ss;
 
    ProcessField key = ScreenSettings_getActiveSortKey(ss);
 
@@ -1089,10 +1398,12 @@ int Process_compare(const void* v1, const void* v2) {
    return (ScreenSettings_getActiveDirection(ss) == 1) ? result : -result;
 }
 
-int Process_compareByKey_Base(const Process* p1, const Process* p2, ProcessField key) {
+int Process_compareByKey_Base(const Process *p1, const Process *p2, ProcessField key)
+{
    int r;
 
-   switch (key) {
+   switch (key)
+   {
    case PERCENT_CPU:
    case PERCENT_NORM_CPU:
       return SPACESHIP_NUMBER(p1->percent_cpu, p2->percent_cpu);
@@ -1100,14 +1411,16 @@ int Process_compareByKey_Base(const Process* p1, const Process* p2, ProcessField
       return SPACESHIP_NUMBER(p1->m_resident, p2->m_resident);
    case COMM:
       return SPACESHIP_NULLSTR(Process_getCommand(p1), Process_getCommand(p2));
-   case PROC_COMM: {
-      const char* comm1 = p1->procComm ? p1->procComm : (Process_isKernelThread(p1) ? kthreadID : "");
-      const char* comm2 = p2->procComm ? p2->procComm : (Process_isKernelThread(p2) ? kthreadID : "");
+   case PROC_COMM:
+   {
+      const char *comm1 = p1->procComm ? p1->procComm : (Process_isKernelThread(p1) ? kthreadID : "");
+      const char *comm2 = p2->procComm ? p2->procComm : (Process_isKernelThread(p2) ? kthreadID : "");
       return SPACESHIP_NULLSTR(comm1, comm2);
    }
-   case PROC_EXE: {
-      const char* exe1 = p1->procExe ? (p1->procExe + p1->procExeBasenameOffset) : (Process_isKernelThread(p1) ? kthreadID : "");
-      const char* exe2 = p2->procExe ? (p2->procExe + p2->procExeBasenameOffset) : (Process_isKernelThread(p2) ? kthreadID : "");
+   case PROC_EXE:
+   {
+      const char *exe1 = p1->procExe ? (p1->procExe + p1->procExeBasenameOffset) : (Process_isKernelThread(p1) ? kthreadID : "");
+      const char *exe2 = p2->procExe ? (p2->procExe + p2->procExeBasenameOffset) : (Process_isKernelThread(p2) ? kthreadID : "");
       return SPACESHIP_NULLSTR(exe1, exe2);
    }
    case CWD:
@@ -1164,7 +1477,8 @@ int Process_compareByKey_Base(const Process* p1, const Process* p2, ProcessField
    }
 }
 
-void Process_updateComm(Process* this, const char* comm) {
+void Process_updateComm(Process *this, const char *comm)
+{
    if (!this->procComm && !comm)
       return;
 
@@ -1177,13 +1491,16 @@ void Process_updateComm(Process* this, const char* comm) {
    this->mergedCommand.lastUpdate = 0;
 }
 
-static int skipPotentialPath(const char* cmdline, int end) {
+static int skipPotentialPath(const char *cmdline, int end)
+{
    if (cmdline[0] != '/')
       return 0;
 
    int slash = 0;
-   for (int i = 1; i < end; i++) {
-      if (cmdline[i] == '/' && cmdline[i + 1] != '\0') {
+   for (int i = 1; i < end; i++)
+   {
+      if (cmdline[i] == '/' && cmdline[i + 1] != '\0')
+      {
          slash = i + 1;
          continue;
       }
@@ -1198,7 +1515,8 @@ static int skipPotentialPath(const char* cmdline, int end) {
    return slash;
 }
 
-void Process_updateCmdline(Process* this, const char* cmdline, int basenameStart, int basenameEnd) {
+void Process_updateCmdline(Process *this, const char *cmdline, int basenameStart, int basenameEnd)
+{
    assert(basenameStart >= 0);
    assert((cmdline && basenameStart < (int)strlen(cmdline)) || (!cmdline && basenameStart == 0));
    assert((basenameEnd > basenameStart) || (basenameEnd == 0 && basenameStart == 0));
@@ -1218,7 +1536,8 @@ void Process_updateCmdline(Process* this, const char* cmdline, int basenameStart
    this->mergedCommand.lastUpdate = 0;
 }
 
-void Process_updateExe(Process* this, const char* exe) {
+void Process_updateExe(Process *this, const char *exe)
+{
    if (!this->procExe && !exe)
       return;
 
@@ -1226,11 +1545,14 @@ void Process_updateExe(Process* this, const char* exe) {
       return;
 
    free(this->procExe);
-   if (exe) {
+   if (exe)
+   {
       this->procExe = xStrdup(exe);
-      const char* lastSlash = strrchr(exe, '/');
+      const char *lastSlash = strrchr(exe, '/');
       this->procExeBasenameOffset = (lastSlash && *(lastSlash + 1) != '\0' && lastSlash != exe) ? (lastSlash - exe + 1) : 0;
-   } else {
+   }
+   else
+   {
       this->procExe = NULL;
       this->procExeBasenameOffset = 0;
    }
@@ -1238,10 +1560,12 @@ void Process_updateExe(Process* this, const char* exe) {
    this->mergedCommand.lastUpdate = 0;
 }
 
-uint8_t Process_fieldWidths[LAST_PROCESSFIELD] = { 0 };
+uint8_t Process_fieldWidths[LAST_PROCESSFIELD] = {0};
 
-void Process_resetFieldWidths(void) {
-   for (size_t i = 0; i < LAST_PROCESSFIELD; i++) {
+void Process_resetFieldWidths(void)
+{
+   for (size_t i = 0; i < LAST_PROCESSFIELD; i++)
+   {
       if (!Process_fields[i].autoWidth)
          continue;
 
@@ -1251,15 +1575,18 @@ void Process_resetFieldWidths(void) {
    }
 }
 
-void Process_updateFieldWidth(ProcessField key, size_t width) {
+void Process_updateFieldWidth(ProcessField key, size_t width)
+{
    if (width > UINT8_MAX)
       Process_fieldWidths[key] = UINT8_MAX;
    else if (width > Process_fieldWidths[key])
       Process_fieldWidths[key] = (uint8_t)width;
 }
 
-void Process_updateCPUFieldWidths(float percentage) {
-   if (percentage < 99.9F) {
+void Process_updateCPUFieldWidths(float percentage)
+{
+   if (percentage < 99.9F)
+   {
       Process_updateFieldWidth(PERCENT_CPU, 4);
       Process_updateFieldWidth(PERCENT_NORM_CPU, 4);
       return;
